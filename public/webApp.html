@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="styles.css">
+  <title>Text File Organizer</title>
+  
+</head>
+<body>
+  <header>
+    <h1>Project One</h1>
+  </header>
+
+  <main>
+    <div class="grid">
+      <!-- list files -->
+      <section class="card">
+        <h2>1) List all .txt files</h2>
+        <button id="btnAll" class="secondary">GET /textfile-api/all</button>
+        <div class="hint">Click a filename to auto-fill inputs.</div>
+        <div id="files" class="files"></div>
+      </section>
+
+      <!-- output -->
+      <section class="card">
+        <h2>Output</h2>
+        <div id="output" class="out">Ready.</div>
+      </section>
+
+      <!-- create new file or overwrite existing -->
+      <section class="card">
+        <h2>2) Create / Overwrite</h2>
+        <label for="newFilename">Filename (must end with .txt)</label>
+        <input id="newFilename" placeholder="example.txt" />
+        <label for="newData">Data</label>
+        <textarea id="newData" placeholder="Write initial content..."></textarea>
+        <button id="btnNew">GET /textfile-api/new</button>
+      </section>
+
+      <!-- read from file -->
+      <section class="card">
+        <h2>3) Read</h2>
+        <label for="readFilename">Filename</label>
+        <input id="readFilename" placeholder="example.txt" />
+        <button id="btnRead">GET /textfile-api/read</button>
+      </section>
+
+      <!-- append to file -->
+      <section class="card">
+        <h2>4) Append</h2>
+        <label for="appendFilename">Filename</label>
+        <input id="appendFilename" placeholder="example.txt" />
+        <label for="appendData">Data to append</label>
+        <textarea id="appendData" placeholder="Add text to the end..."></textarea>
+        <button id="btnAppend">GET /textfile-api/append</button>
+      </section>
+
+      <!-- remove file -->
+      <section class="card">
+        <h2>5) Delete</h2>
+        <label for="removeFilename">Filename</label>
+        <input id="removeFilename" placeholder="example.txt" />
+        <button id="btnRemove" style="background:#b00020;border-color:#b00020;">GET /textfile-api/remove</button>
+        <div class="hint">Careful — this deletes the file permanently.</div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = "";
+
+    const $ = (id) => document.getElementById(id);
+
+    const output = $("output");
+    const filesWrap = $("files");
+
+    function setOutput(text) {
+      output.textContent = text;
+    }
+
+    function normalizeFilename(name) {
+      if (!name) return "";
+      name = name.trim();
+      if (name && !name.endsWith(".txt")) name += ".txt";
+      return name;
+    }
+
+    async function callApi(path, params = {}) {
+      const url = new URL(API_BASE + path, window.location.origin);
+
+      for (const [k, v] of Object.entries(params)) {
+        url.searchParams.set(k, v);
+      }
+
+      setOutput(`Requesting:\n${url.pathname}${url.search}\n\nLoading...`);
+
+      const res = await fetch(url.toString(), { method: "GET" });
+      const text = await res.text();
+
+      setOutput(
+        `Request:\n${url.pathname}${url.search}\n\n` +
+        `Status: ${res.status}\n\n` +
+        `Response:\n${text}`
+      );
+
+      return { status: res.status, text };
+    }
+
+    function fillAllInputs(filename) {
+      const f = filename;
+      $("newFilename").value = f;
+      $("readFilename").value = f;
+      $("appendFilename").value = f;
+      $("removeFilename").value = f;
+    }
+
+    function renderFiles(listText) {
+      filesWrap.innerHTML = "";
+      const files = listText
+        .split(/\r?\n/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      if (files.length === 0) {
+        filesWrap.innerHTML = "<span class='hint'>No .txt files found.</span>";
+        return;
+      }
+
+      for (const f of files) {
+        const btn = document.createElement("button");
+        btn.className = "fileBtn";
+        btn.type = "button";
+        btn.textContent = f;
+        btn.addEventListener("click", () => fillAllInputs(f));
+        filesWrap.appendChild(btn);
+      }
+    }
+
+    $("btnAll").addEventListener("click", async () => {
+      const { text } = await callApi("/textfile-api/all");
+      renderFiles(text);
+    });
+
+    $("btnNew").addEventListener("click", async () => {
+      const filename = normalizeFilename($("newFilename").value);
+      const data = $("newData").value ?? "";
+
+      if (!filename) return setOutput("Please enter a filename.");
+      await callApi("/textfile-api/new", { filename, data });
+      const { text } = await callApi("/textfile-api/all");
+      renderFiles(text);
+
+      document.getElementById("newFilename").value = "";
+      document.getElementById("newData").value = "";
+
+    });
+
+    $("btnRead").addEventListener("click", async () => {
+      const filename = normalizeFilename($("readFilename").value);
+      if (!filename) return setOutput("Please enter a filename.");
+      await callApi("/textfile-api/read", { filename });
+
+      document.getElementById("readFilename").value = "";
+    });
+
+    $("btnAppend").addEventListener("click", async () => {
+      const filename = normalizeFilename($("appendFilename").value);
+      const data = $("appendData").value ?? "";
+
+      if (!filename) return setOutput("Please enter a filename.");
+      await callApi("/textfile-api/append", { filename, data });
+
+      document.getElementById("appendFilename").value = "";
+      document.getElementById("appendData").value = "";
+    });
+
+    $("btnRemove").addEventListener("click", async () => {
+      const filename = normalizeFilename($("removeFilename").value);
+      if (!filename) return setOutput("Please enter a filename.");
+
+      const ok = confirm(`Delete "${filename}" ?`);
+      if (!ok) return;
+
+      await callApi("/textfile-api/remove", { filename });
+      // Refresh list after delete
+      const { text } = await callApi("/textfile-api/all");
+      renderFiles(text);
+
+      document.getElementById("removeFilename").value = "";
+      
+
+    });
+
+    window.addEventListener("load", () => $("btnAll").click());
+  </script>
+</body>
+</html>
