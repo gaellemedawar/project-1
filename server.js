@@ -63,6 +63,10 @@ const server = http.createServer((req, res) => {
   
   else if (pathname === "/") {
     fs.readFile("./public/webApp.html", (err, html) => {
+      if (err) {
+        res.statusCode = 404;
+        return res.end("HTML not found");
+      }
       res.setHeader("Content-Type", "text/html");
       res.end(html);
     });
